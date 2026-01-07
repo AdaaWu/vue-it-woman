@@ -12,11 +12,13 @@ import {
   Hash,
   Coffee,
   Sun,
-  Moon
+  Moon,
+  Pencil
 } from 'lucide-vue-next'
 import WelcomeScreen from './components/WelcomeScreen.vue'
 import EmojiPicker from './components/EmojiPicker.vue'
-import type { Message, UserData, FirebaseUser, Channel } from './types'
+import UserProfileModal from './components/UserProfileModal.vue'
+import type { Message, FirebaseUser, Channel, UserProfile, UserProfileInput } from './types'
 import type { FirebaseApp } from 'firebase/app'
 import type { Auth, Unsubscribe as AuthUnsubscribe } from 'firebase/auth'
 import type { Firestore, Unsubscribe as FirestoreUnsubscribe } from 'firebase/firestore'
@@ -54,7 +56,7 @@ const channels: Channel[] = [
 
 // --- State ---
 const user: Ref<FirebaseUser | null> = ref(MOCK_MODE ? { uid: 'mock-user-me' } : null)
-const userData: Ref<UserData | null> = ref(null)
+const userProfile: Ref<UserProfile | null> = ref(null)
 const currentChannel: Ref<string> = ref('tech')
 const messages: Ref<Message[]> = ref([])
 const newMessage: Ref<string> = ref('')
@@ -62,6 +64,12 @@ const isSidebarOpen: Ref<boolean> = ref(false)
 const isEmojiPickerOpen: Ref<boolean> = ref(false)
 const localMessages: Ref<Message[]> = ref([])
 const darkMode: Ref<boolean> = ref(false)
+
+// --- Profile Modal State ---
+const profileModalShow: Ref<boolean> = ref(false)
+const profileModalMode: Ref<'view' | 'edit'> = ref('view')
+const profileModalTarget: Ref<UserProfile | null> = ref(null)
+const profileModalIsOwn: Ref<boolean> = ref(false)
 
 // --- Refs ---
 const messagesEndRef: Ref<HTMLElement | null> = ref(null)
@@ -71,7 +79,7 @@ const inputRef: Ref<HTMLInputElement | null> = ref(null)
 // --- Computed ---
 const activeChannelInfo = computed<Channel | undefined>(() => channels.find(c => c.id === currentChannel.value))
 
-const isLoggedIn = computed<boolean>(() => !!(user.value && userData.value))
+const isLoggedIn = computed<boolean>(() => !!(user.value && userProfile.value))
 
 // --- 初始化 Dark Mode ---
 onMounted((): void => {
@@ -104,7 +112,14 @@ onUnmounted((): void => {
 let authUnsubscribe: AuthUnsubscribe | null = null
 
 onMounted(async (): Promise<void> => {
-  if (MOCK_MODE) return
+  if (MOCK_MODE) {
+    // Mock 模式: 從 localStorage 讀取 profile
+    const saved = localStorage.getItem('ither-user-profile')
+    if (saved) {
+      userProfile.value = JSON.parse(saved)
+    }
+    return
+  }
 
   try {
     const { initializeApp } = await import('firebase/app')
@@ -125,8 +140,11 @@ onMounted(async (): Promise<void> => {
     db = getFirestore(app)
 
     await signInAnonymously(auth)
-    authUnsubscribe = onAuthStateChanged(auth, (u): void => {
+    authUnsubscribe = onAuthStateChanged(auth, async (u): Promise<void> => {
       user.value = u ? { uid: u.uid } : null
+      if (u) {
+        await loadUserProfile()
+      }
     })
   } catch (error) {
     console.error("Auth error:", error)
@@ -136,6 +154,99 @@ onMounted(async (): Promise<void> => {
 onUnmounted((): void => {
   authUnsubscribe?.()
 })
+
+// --- 載入自己的 Profile ---
+const loadUserProfile = async (): Promise<void> => {
+  if (!user.value || !db || MOCK_MODE) return
+
+  try {
+    const { doc, getDoc } = await import('firebase/firestore')
+    const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'userProfiles', user.value.uid)
+    const snapshot = await getDoc(profileRef)
+
+    if (snapshot.exists()) {
+      userProfile.value = { userId: snapshot.id, ...snapshot.data() } as UserProfile
+    }
+  } catch (error) {
+    console.error("Load profile error:", error)
+  }
+}
+
+// --- 儲存 Profile ---
+const saveUserProfile = async (profileData: UserProfileInput): Promise<void> => {
+  if (!user.value) return
+
+  const profile: UserProfile = {
+    userId: user.value.uid,
+    nickname: profileData.nickname,
+    role: profileData.role,
+    title: profileData.title || '',
+    bio: profileData.bio || '',
+    skills: profileData.skills || [],
+    createdAt: userProfile.value?.createdAt || { seconds: Date.now() / 1000 },
+    updatedAt: { seconds: Date.now() / 1000 }
+  }
+
+  if (MOCK_MODE) {
+    localStorage.setItem('ither-user-profile', JSON.stringify(profile))
+    userProfile.value = profile
+    profileModalShow.value = false
+    return
+  }
+
+  try {
+    const { doc, setDoc, serverTimestamp } = await import('firebase/firestore')
+    if (!db) return
+
+    const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'userProfiles', user.value.uid)
+    await setDoc(profileRef, {
+      ...profileData,
+      title: profileData.title || '',
+      bio: profileData.bio || '',
+      skills: profileData.skills || [],
+      updatedAt: serverTimestamp(),
+      createdAt: userProfile.value?.createdAt || serverTimestamp()
+    }, { merge: true })
+
+    userProfile.value = profile
+    profileModalShow.value = false
+  } catch (error) {
+    console.error("Save profile error:", error)
+  }
+}
+
+// --- 載入其他使用者 Profile ---
+const loadOtherUserProfile = async (userId: string): Promise<UserProfile | null> => {
+  if (MOCK_MODE) {
+    // Mock 模式: 返回假資料
+    return {
+      userId,
+      nickname: MOCK_MESSAGES.find(m => m.userId === userId)?.userName || 'Unknown',
+      role: MOCK_MESSAGES.find(m => m.userId === userId)?.userRole || 'Guest',
+      title: '',
+      bio: '',
+      skills: [],
+      createdAt: null,
+      updatedAt: null
+    }
+  }
+
+  if (!db) return null
+
+  try {
+    const { doc, getDoc } = await import('firebase/firestore')
+    const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'userProfiles', userId)
+    const snapshot = await getDoc(profileRef)
+
+    if (snapshot.exists()) {
+      return { userId: snapshot.id, ...snapshot.data() } as UserProfile
+    }
+    return null
+  } catch (error) {
+    console.error("Load other profile error:", error)
+    return null
+  }
+}
 
 // --- 訊息載入 ---
 let messagesUnsubscribe: FirestoreUnsubscribe | null = null
@@ -195,9 +306,9 @@ watch(messages, async (): Promise<void> => {
   messagesEndRef.value?.scrollIntoView({ behavior: 'smooth' })
 }, { deep: true })
 
-// --- 處理加入 ---
-const handleJoin = (nickname: string, role: string): void => {
-  userData.value = { nickname, role }
+// --- 處理加入 (從 WelcomeScreen) ---
+const handleJoin = (profileData: UserProfileInput): void => {
+  saveUserProfile(profileData)
 }
 
 // --- 選擇 Emoji ---
@@ -209,7 +320,7 @@ const handleEmojiSelect = (emoji: string): void => {
 
 // --- 發送訊息 ---
 const handleSendMessage = async (): Promise<void> => {
-  if (!newMessage.value.trim() || !user.value || !userData.value) return
+  if (!newMessage.value.trim() || !user.value || !userProfile.value) return
 
   // Mock 模式
   if (MOCK_MODE) {
@@ -218,8 +329,8 @@ const handleSendMessage = async (): Promise<void> => {
       text: newMessage.value,
       channelId: currentChannel.value,
       userId: user.value.uid,
-      userName: userData.value.nickname,
-      userRole: userData.value.role,
+      userName: userProfile.value.nickname,
+      userRole: userProfile.value.role,
       timestamp: { seconds: Date.now() / 1000 },
       type: 'text'
     }
@@ -237,8 +348,8 @@ const handleSendMessage = async (): Promise<void> => {
       text: newMessage.value,
       channelId: currentChannel.value,
       userId: user.value.uid,
-      userName: userData.value.nickname,
-      userRole: userData.value.role,
+      userName: userProfile.value.nickname,
+      userRole: userProfile.value.role,
       timestamp: serverTimestamp(),
       type: 'text'
     })
@@ -268,6 +379,41 @@ const isMyMessage = (msg: Message): boolean => msg.userId === user.value?.uid
 const shouldShowAvatar = (index: number): boolean => {
   return index === 0 || messages.value[index - 1].userId !== messages.value[index].userId
 }
+
+// --- Profile Modal 操作 ---
+const openOwnProfileView = (): void => {
+  profileModalTarget.value = userProfile.value
+  profileModalMode.value = 'view'
+  profileModalIsOwn.value = true
+  profileModalShow.value = true
+}
+
+const openOtherProfile = async (userId: string): Promise<void> => {
+  if (userId === user.value?.uid) {
+    openOwnProfileView()
+    return
+  }
+
+  const profile = await loadOtherUserProfile(userId)
+  if (profile) {
+    profileModalTarget.value = profile
+    profileModalMode.value = 'view'
+    profileModalIsOwn.value = false
+    profileModalShow.value = true
+  }
+}
+
+const handleProfileSave = (data: UserProfileInput): void => {
+  saveUserProfile(data)
+}
+
+const handleSwitchToEdit = (): void => {
+  profileModalMode.value = 'edit'
+}
+
+const closeProfileModal = (): void => {
+  profileModalShow.value = false
+}
 </script>
 
 <template>
@@ -284,6 +430,18 @@ const shouldShowAvatar = (index: number): boolean => {
     'flex h-screen overflow-hidden font-sans transition-colors duration-300',
     darkMode ? 'bg-slate-950 text-slate-100 dark' : 'bg-white text-slate-800'
   ]">
+
+    <!-- Profile Modal -->
+    <UserProfileModal
+      :show="profileModalShow"
+      :profile="profileModalTarget"
+      :dark-mode="darkMode"
+      :mode="profileModalMode"
+      :is-own-profile="profileModalIsOwn"
+      @close="closeProfileModal"
+      @save="handleProfileSave"
+      @switch-to-edit="handleSwitchToEdit"
+    />
 
     <!-- 行動版側邊欄遮罩 -->
     <div
@@ -317,18 +475,53 @@ const shouldShowAvatar = (index: number): boolean => {
           </button>
         </div>
 
-        <!-- 用戶資訊 -->
-        <div :class="['p-4 mx-4 mt-4 border rounded-xl shadow-sm transition-colors', darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200']">
+        <!-- 用戶資訊 (可點擊) -->
+        <button
+          @click="openOwnProfileView"
+          :class="[
+            'p-4 mx-4 mt-4 border rounded-xl shadow-sm transition-all text-left group',
+            darkMode
+              ? 'bg-slate-800 border-slate-700 hover:bg-slate-700/50'
+              : 'bg-white border-slate-200 hover:bg-slate-50'
+          ]"
+        >
           <div class="flex items-center gap-3">
             <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-purple-400 to-indigo-500 flex items-center justify-center text-white font-bold">
-              {{ userData?.nickname[0].toUpperCase() }}
+              {{ userProfile?.nickname[0].toUpperCase() }}
             </div>
-            <div class="overflow-hidden">
-              <p class="font-semibold text-sm truncate">{{ userData?.nickname }}</p>
-              <p class="text-xs text-indigo-400 font-medium truncate">{{ userData?.role }}</p>
+            <div class="overflow-hidden flex-1">
+              <p class="font-semibold text-sm truncate">{{ userProfile?.nickname }}</p>
+              <p class="text-xs text-indigo-400 font-medium truncate">{{ userProfile?.role }}</p>
             </div>
+            <Pencil :class="[
+              'w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity',
+              darkMode ? 'text-slate-500' : 'text-slate-400'
+            ]" />
           </div>
-        </div>
+          <!-- 職位顯示 -->
+          <p v-if="userProfile?.title" :class="['text-xs mt-2 truncate', darkMode ? 'text-slate-500' : 'text-slate-400']">
+            {{ userProfile.title }}
+          </p>
+          <!-- 技能標籤 (最多顯示3個) -->
+          <div v-if="userProfile?.skills && userProfile.skills.length > 0" class="flex flex-wrap gap-1 mt-2">
+            <span
+              v-for="skill in userProfile.skills.slice(0, 3)"
+              :key="skill"
+              :class="[
+                'px-1.5 py-0.5 rounded text-[10px] font-medium',
+                darkMode ? 'bg-slate-700 text-slate-400' : 'bg-slate-100 text-slate-500'
+              ]"
+            >
+              {{ skill }}
+            </span>
+            <span
+              v-if="userProfile.skills.length > 3"
+              :class="['text-[10px]', darkMode ? 'text-slate-500' : 'text-slate-400']"
+            >
+              +{{ userProfile.skills.length - 3 }}
+            </span>
+          </div>
+        </button>
 
         <!-- Demo 模式標示 -->
         <div v-if="MOCK_MODE" class="mx-4 mt-3 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg">
@@ -388,18 +581,26 @@ const shouldShowAvatar = (index: number): boolean => {
           :key="msg.id"
           :class="['flex gap-4 group animate-in fade-in slide-in-from-bottom-2 duration-300', isMyMessage(msg) ? 'flex-row-reverse' : '']"
         >
-          <!-- 頭像 (非自己的訊息) -->
+          <!-- 頭像 (非自己的訊息, 可點擊) -->
           <div v-if="!isMyMessage(msg)" :class="['flex-shrink-0 w-10 h-10', !shouldShowAvatar(index) ? 'invisible' : '']">
-            <div class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white shadow-sm bg-slate-400">
+            <button
+              @click="openOtherProfile(msg.userId)"
+              class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white shadow-sm bg-slate-400 hover:ring-2 hover:ring-indigo-400 transition-all"
+            >
               {{ msg.userName ? msg.userName[0].toUpperCase() : '?' }}
-            </div>
+            </button>
           </div>
 
           <div :class="['flex flex-col max-w-[80%]', isMyMessage(msg) ? 'items-end' : 'items-start']">
             <!-- 名稱與時間 -->
             <div v-if="shouldShowAvatar(index)" :class="['flex items-baseline gap-2 mb-1', isMyMessage(msg) ? 'flex-row-reverse' : '']">
               <template v-if="!isMyMessage(msg)">
-                <span :class="['text-sm font-semibold', darkMode ? 'text-slate-200' : 'text-slate-700']">{{ msg.userName }}</span>
+                <button
+                  @click="openOtherProfile(msg.userId)"
+                  :class="['text-sm font-semibold hover:underline', darkMode ? 'text-slate-200' : 'text-slate-700']"
+                >
+                  {{ msg.userName }}
+                </button>
                 <span :class="['text-[10px] px-1.5 py-0.5 rounded', darkMode ? 'bg-slate-800 text-slate-400' : 'bg-slate-200 text-slate-600']">{{ msg.userRole }}</span>
               </template>
               <span class="text-[10px] text-slate-500 ml-1">{{ formatTime(msg.timestamp) }}</span>

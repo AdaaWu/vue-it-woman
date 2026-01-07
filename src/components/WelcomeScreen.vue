@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { Ref } from 'vue'
+import { ChevronDown, ChevronUp } from 'lucide-vue-next'
+import SkillTagInput from './SkillTagInput.vue'
+import type { UserProfileInput } from '../types'
+import { ROLE_OPTIONS } from '../types'
 
 interface Props {
   darkMode: boolean
@@ -10,24 +14,30 @@ interface Props {
 defineProps<Props>()
 
 const emit = defineEmits<{
-  join: [nickname: string, role: string]
+  join: [profile: UserProfileInput]
 }>()
 
 const nickname: Ref<string> = ref('')
 const role: Ref<string> = ref('Guest')
+const title: Ref<string> = ref('')
+const bio: Ref<string> = ref('')
+const skills: Ref<string[]> = ref([])
 const isSubmitting: Ref<boolean> = ref(false)
-
-const roles: string[] = [
-  "Guest", "Frontend Dev", "Backend Dev", "Fullstack", "Mobile Dev",
-  "Data Scientist", "Product Manager", "UI/UX Designer",
-  "QA Engineer", "Engineering Manager", "Student/Learner"
-]
+const showOptional: Ref<boolean> = ref(false)
 
 const handleSubmit = (): void => {
   if (!nickname.value.trim()) return
   isSubmitting.value = true
-  emit('join', nickname.value, role.value)
+  emit('join', {
+    nickname: nickname.value.trim(),
+    role: role.value,
+    title: title.value.trim(),
+    bio: bio.value.trim(),
+    skills: skills.value
+  })
 }
+
+const bioMaxLength = 200
 </script>
 
 <template>
@@ -58,15 +68,17 @@ const handleSubmit = (): void => {
         </p>
       </div>
 
-      <form @submit.prevent="handleSubmit" class="space-y-6">
+      <form @submit.prevent="handleSubmit" class="space-y-5">
+        <!-- 暱稱 (必填) -->
         <div>
           <label :class="['block text-sm font-medium mb-2', darkMode ? 'text-slate-300' : 'text-slate-700']">
-            妳的暱稱
+            妳的暱稱 <span class="text-red-500">*</span>
           </label>
           <input
             v-model="nickname"
             type="text"
             required
+            maxlength="20"
             :class="[
               'w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-indigo-500 outline-none transition',
               darkMode ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-500' : 'bg-white border-slate-200 text-slate-800'
@@ -75,25 +87,97 @@ const handleSubmit = (): void => {
           />
         </div>
 
+        <!-- 職業角色 (必填) -->
         <div>
           <label :class="['block text-sm font-medium mb-2', darkMode ? 'text-slate-300' : 'text-slate-700']">
-            目前的角色/標籤
+            目前的角色 <span class="text-red-500">*</span>
           </label>
           <select
             v-model="role"
             :class="[
-              'w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-indigo-500 outline-none transition',
+              'w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-indigo-500 outline-none transition appearance-none cursor-pointer',
               darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-800'
             ]"
           >
-            <option v-for="r in roles" :key="r" :value="r">{{ r }}</option>
+            <option v-for="r in ROLE_OPTIONS" :key="r" :value="r">{{ r }}</option>
           </select>
         </div>
 
+        <!-- 展開選填欄位按鈕 -->
         <button
-          :disabled="isSubmitting"
+          type="button"
+          @click="showOptional = !showOptional"
+          :class="[
+            'w-full flex items-center justify-center gap-2 py-2 text-sm font-medium transition-colors',
+            darkMode ? 'text-slate-400 hover:text-slate-300' : 'text-slate-500 hover:text-slate-700'
+          ]"
+        >
+          {{ showOptional ? '收起選填資料' : '完善個人檔案 (選填)' }}
+          <ChevronUp v-if="showOptional" class="w-4 h-4" />
+          <ChevronDown v-else class="w-4 h-4" />
+        </button>
+
+        <!-- 選填欄位 -->
+        <div v-if="showOptional" class="space-y-5 pt-2">
+          <!-- 職位/頭銜 -->
+          <div>
+            <label :class="['block text-sm font-medium mb-2', darkMode ? 'text-slate-300' : 'text-slate-700']">
+              職位/頭銜
+            </label>
+            <input
+              v-model="title"
+              type="text"
+              maxlength="50"
+              :class="[
+                'w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-indigo-500 outline-none transition',
+                darkMode ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-500' : 'bg-white border-slate-200 text-slate-800'
+              ]"
+              placeholder="例如：Senior Frontend Engineer"
+            />
+          </div>
+
+          <!-- 自我介紹 -->
+          <div>
+            <label :class="['block text-sm font-medium mb-2', darkMode ? 'text-slate-300' : 'text-slate-700']">
+              自我介紹
+            </label>
+            <textarea
+              v-model="bio"
+              rows="3"
+              :maxlength="bioMaxLength"
+              :class="[
+                'w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-indigo-500 outline-none transition resize-none',
+                darkMode ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-500' : 'bg-white border-slate-200 text-slate-800'
+              ]"
+              placeholder="簡單介紹一下自己..."
+            />
+            <p :class="['text-xs mt-1 text-right', darkMode ? 'text-slate-500' : 'text-slate-400']">
+              {{ bio.length }}/{{ bioMaxLength }}
+            </p>
+          </div>
+
+          <!-- 技能標籤 -->
+          <div>
+            <label :class="['block text-sm font-medium mb-2', darkMode ? 'text-slate-300' : 'text-slate-700']">
+              技能標籤
+            </label>
+            <SkillTagInput
+              v-model="skills"
+              :dark-mode="darkMode"
+              :max-tags="10"
+            />
+          </div>
+        </div>
+
+        <button
+          :disabled="isSubmitting || !nickname.trim()"
           type="submit"
-          class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl transition shadow-md shadow-indigo-900/20 active:scale-95"
+          :class="[
+            'w-full font-semibold py-3 rounded-xl transition shadow-md shadow-indigo-900/20 active:scale-95',
+            isSubmitting || !nickname.trim()
+              ? (darkMode ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-slate-200 text-slate-400 cursor-not-allowed')
+              : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+          ]"
         >
           {{ isSubmitting ? '進入中...' : '加入討論' }}
         </button>
