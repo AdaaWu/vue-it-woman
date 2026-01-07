@@ -17,7 +17,6 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    environment: ither
     steps:
       - name: Checkout
         uses: actions/checkout@v4
