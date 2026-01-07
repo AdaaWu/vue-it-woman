@@ -14,11 +14,11 @@ const emit = defineEmits<{
 }>()
 
 const nickname: Ref<string> = ref('')
-const role: Ref<string> = ref('訪客')
+const role: Ref<string> = ref('Guest')
 const isSubmitting: Ref<boolean> = ref(false)
 
 const roles: string[] = [
-  "訪客", "Frontend Dev", "Backend Dev", "Fullstack", "Mobile Dev",
+  "Guest", "Frontend Dev", "Backend Dev", "Fullstack", "Mobile Dev",
   "Data Scientist", "Product Manager", "UI/UX Designer",
   "QA Engineer", "Engineering Manager", "Student/Learner"
 ]
