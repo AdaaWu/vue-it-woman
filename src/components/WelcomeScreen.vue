@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { Ref } from 'vue'
-import { Cpu } from 'lucide-vue-next'
 
 interface Props {
   darkMode: boolean
@@ -15,11 +14,11 @@ const emit = defineEmits<{
 }>()
 
 const nickname: Ref<string> = ref('')
-const role: Ref<string> = ref('Frontend Dev')
+const role: Ref<string> = ref('訪客')
 const isSubmitting: Ref<boolean> = ref(false)
 
 const roles: string[] = [
-  "Frontend Dev", "Backend Dev", "Fullstack", "Mobile Dev",
+  "訪客", "Frontend Dev", "Backend Dev", "Fullstack", "Mobile Dev",
   "Data Scientist", "Product Manager", "UI/UX Designer",
   "QA Engineer", "Engineering Manager", "Student/Learner"
 ]
@@ -41,11 +40,15 @@ const handleSubmit = (): void => {
       darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-indigo-100'
     ]">
       <div class="text-center mb-8">
-        <div class="bg-indigo-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-200">
-          <Cpu class="text-white w-8 h-8" />
+        <div class="bg-indigo-600 w-14 h-14 rounded-lg flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-500/30">
+          <span class="text-white font-bold text-base tracking-wide">&lt;/&gt;</span>
         </div>
-        <h1 :class="['text-3xl font-bold mb-2', darkMode ? 'text-white' : 'text-slate-800']">
-          TechShe Hub
+        <h1 :class="['text-4xl font-extrabold tracking-tight mb-2 flex items-baseline justify-center', darkMode ? 'text-white' : 'text-slate-800']">
+          <span :class="darkMode ? 'text-slate-100' : 'text-slate-800'">IT</span>
+          <span class="text-indigo-600 ml-0.5 relative">
+            Her
+            <span class="absolute -right-3 bottom-1 w-2 h-2 bg-indigo-400 rounded-full"></span>
+          </span>
         </h1>
         <p :class="darkMode ? 'text-slate-400' : 'text-slate-500'">
           科技女性的專屬避風港

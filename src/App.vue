@@ -11,7 +11,6 @@ import {
   Smile,
   Hash,
   Coffee,
-  Cpu,
   Sun,
   Moon
 } from 'lucide-vue-next'
@@ -303,10 +302,16 @@ const shouldShowAvatar = (index: number): boolean => {
       <div class="h-full flex flex-col">
         <!-- Logo -->
         <div :class="['p-6 border-b flex items-center gap-3', darkMode ? 'border-slate-800' : 'border-slate-200']">
-          <div class="bg-indigo-600 p-2 rounded-lg shadow-lg shadow-indigo-900/20">
-            <Cpu class="text-white w-5 h-5" />
+          <div class="bg-indigo-600 w-11 h-11 rounded-lg shadow-lg shadow-indigo-500/30 flex items-center justify-center">
+            <span class="text-white font-bold text-sm tracking-wide">&lt;/&gt;</span>
           </div>
-          <h1 class="font-bold text-lg">TechShe Hub</h1>
+          <h1 class="font-extrabold text-2xl tracking-tight flex items-baseline">
+            <span :class="darkMode ? 'text-slate-100' : 'text-slate-800'">IT</span>
+            <span class="text-indigo-600 ml-0.5 relative">
+              Her
+              <span class="absolute -right-3 bottom-1 w-2 h-2 bg-indigo-400 rounded-full"></span>
+            </span>
+          </h1>
           <button @click="isSidebarOpen = false" class="md:hidden ml-auto p-1 text-slate-400">
             <X class="w-6 h-6" />
           </button>
