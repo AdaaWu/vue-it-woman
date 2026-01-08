@@ -7,6 +7,9 @@ import { useAuth, WelcomeScreen } from '@/modules/auth'
 import { useProfile, UserProfileModal } from '@/modules/profile'
 import { useChat, ChatView, CHANNELS } from '@/modules/chat'
 import { useMentorship, MentorshipView } from '@/modules/mentorship'
+import { ForumView } from '@/modules/forum'
+import { BooklistView } from '@/modules/booklist'
+import { MarketplaceView } from '@/modules/marketplace'
 import { MOCK_MODE, initializeFirebase } from '@/shared/services/firebase'
 import AppSidebar from '@/shared/layout/AppSidebar.vue'
 
@@ -76,7 +79,7 @@ watch([user, userProfile], async ([u, p]) => {
 // --- UI State ---
 const darkMode: Ref<boolean> = ref(false)
 const isSidebarOpen: Ref<boolean> = ref(false)
-const currentView: Ref<'chat' | 'mentorship'> = ref('chat')
+const currentView: Ref<'chat' | 'mentorship' | 'forum' | 'booklist' | 'marketplace'> = ref('chat')
 
 // --- Profile Modal State ---
 const profileModalShow: Ref<boolean> = ref(false)
@@ -110,6 +113,21 @@ const handleSelectChannel = (channelId: string): void => {
 
 const handleSelectMentorship = (): void => {
   currentView.value = 'mentorship'
+  isSidebarOpen.value = false
+}
+
+const handleSelectForum = (): void => {
+  currentView.value = 'forum'
+  isSidebarOpen.value = false
+}
+
+const handleSelectBooklist = (): void => {
+  currentView.value = 'booklist'
+  isSidebarOpen.value = false
+}
+
+const handleSelectMarketplace = (): void => {
+  currentView.value = 'marketplace'
   isSidebarOpen.value = false
 }
 
@@ -234,15 +252,46 @@ const handleMentorshipRefresh = async (): Promise<void> => {
       @close="isSidebarOpen = false"
       @select-channel="handleSelectChannel"
       @select-mentorship="handleSelectMentorship"
+      @select-forum="handleSelectForum"
+      @select-booklist="handleSelectBooklist"
+      @select-marketplace="handleSelectMarketplace"
       @open-profile="openOwnProfileView"
     />
 
     <!-- 主內容區 -->
     <main :class="['flex-1 flex flex-col min-w-0 transition-colors duration-300', darkMode ? 'bg-slate-950' : 'bg-white']">
 
+      <!-- 論壇頁面 -->
+      <ForumView
+        v-if="currentView === 'forum'"
+        :user-id="user?.uid || ''"
+        :user-name="userProfile?.nickname || ''"
+        :user-role="userProfile?.role || ''"
+        :dark-mode="darkMode"
+        @toggle-dark-mode="toggleDarkMode"
+        @open-sidebar="isSidebarOpen = true"
+      />
+
+      <!-- 書單頁面 -->
+      <BooklistView
+        v-else-if="currentView === 'booklist'"
+        :user-id="user?.uid || null"
+        :user-profile="userProfile"
+        :dark-mode="darkMode"
+      />
+
+      <!-- 二手物交流頁面 -->
+      <MarketplaceView
+        v-else-if="currentView === 'marketplace'"
+        :user-id="user?.uid || null"
+        :user-profile="userProfile"
+        :dark-mode="darkMode"
+        @view-user-profile="openOtherProfile"
+      />
+
       <!-- 導師計畫頁面 -->
       <MentorshipView
-        v-if="currentView === 'mentorship'"
+        v-else-if="currentView === 'mentorship'"
         :dark-mode="darkMode"
         :user-id="user?.uid || ''"
         :user-profile="userProfile"
