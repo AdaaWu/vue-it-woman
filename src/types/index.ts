@@ -89,3 +89,132 @@ export interface EmojiCategory {
   cat: string
   emojis: string[]
 }
+
+// ===== 導師計畫類型 =====
+
+// Firebase Timestamp 類型
+export interface FirebaseTimestamp {
+  seconds: number
+  toMillis?: () => number
+}
+
+// 導師資料
+export interface MentorProfile {
+  isAvailable: boolean
+  teachingAreas: string[]
+  maxMentees: number
+  introduction: string
+  createdAt: FirebaseTimestamp | null
+  updatedAt: FirebaseTimestamp | null
+}
+
+export interface MentorProfileInput {
+  isAvailable: boolean
+  teachingAreas: string[]
+  maxMentees: number
+  introduction: string
+}
+
+// 學員資料
+export interface MenteeProfile {
+  isLooking: boolean
+  learningGoals: string[]
+  currentLevel: string
+  expectations: string
+  createdAt: FirebaseTimestamp | null
+  updatedAt: FirebaseTimestamp | null
+}
+
+export interface MenteeProfileInput {
+  isLooking: boolean
+  learningGoals: string[]
+  currentLevel: string
+  expectations: string
+}
+
+// 配對狀態
+export type MentorshipStatus =
+  | 'pending_mentor'   // 等待導師接受
+  | 'pending_mentee'   // 等待學員接受
+  | 'active'           // 配對中
+  | 'completed'        // 已結束
+  | 'rejected'         // 已拒絕
+
+// 配對關係
+export interface Mentorship {
+  id: string
+  mentorId: string
+  menteeId: string
+  status: MentorshipStatus
+  initiatedBy: string
+  areas: string[]
+  message: string
+  createdAt: FirebaseTimestamp | null
+  updatedAt: FirebaseTimestamp | null
+  acceptedAt?: FirebaseTimestamp | null
+  completedAt?: FirebaseTimestamp | null
+  rejectionReason?: string
+  // 快取的用戶資料
+  mentorName?: string
+  menteeName?: string
+}
+
+export interface MentorshipRequest {
+  targetUserId: string
+  areas: string[]
+  message: string
+}
+
+// 發布類型
+export type MentorPostType = 'offer' | 'request'
+export type MentorPostStatus = 'active' | 'paused' | 'closed'
+
+// 導師/學員發布
+export interface MentorPost {
+  id: string
+  userId: string
+  type: MentorPostType
+  title: string
+  areas: string[]
+  description: string
+  status: MentorPostStatus
+  createdAt: FirebaseTimestamp | null
+  updatedAt: FirebaseTimestamp | null
+  // 快取的用戶資料
+  userName?: string
+  userRole?: string
+}
+
+export interface MentorPostInput {
+  type: MentorPostType
+  title: string
+  areas: string[]
+  description: string
+}
+
+// 擴展 UserProfile (含導師/學員資料)
+export interface UserProfileWithMentorship extends UserProfile {
+  mentorProfile?: MentorProfile
+  menteeProfile?: MenteeProfile
+}
+
+// 程度選項
+export const LEVEL_OPTIONS: string[] = [
+  '完全初學者',
+  '有基礎概念',
+  '初級 (0-1年經驗)',
+  '中級 (1-3年經驗)',
+  '資深 (3年以上)'
+]
+
+// 導師最大學員數選項
+export const MAX_MENTEES_OPTIONS: number[] = [1, 2, 3, 5]
+
+// 配對狀態標籤
+export const MENTORSHIP_STATUS_LABELS: Record<MentorshipStatus, string> = {
+  pending_mentor: '等待導師回應',
+  pending_mentee: '等待學員回應',
+  active: '配對中',
+  completed: '已結束',
+  rejected: '已拒絕'
+}

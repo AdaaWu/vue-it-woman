@@ -105,7 +105,7 @@ const handleKeydown = (e: KeyboardEvent): void => {
           type="text"
           :placeholder="modelValue.length === 0 ? '輸入或選擇技能標籤...' : '新增更多標籤...'"
           @focus="showSuggestions = true"
-          @blur="() => setTimeout(() => showSuggestions = false, 200)"
+          @blur="setTimeout(() => showSuggestions = false, 200)"
           @keydown="handleKeydown"
           :class="[
             'flex-1 px-4 py-2 rounded-lg border text-sm transition-all outline-none',

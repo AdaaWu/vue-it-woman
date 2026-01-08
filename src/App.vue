@@ -13,12 +13,18 @@ import {
   Coffee,
   Sun,
   Moon,
-  Pencil
+  Pencil,
+  Users
 } from 'lucide-vue-next'
 import WelcomeScreen from './components/WelcomeScreen.vue'
 import EmojiPicker from './components/EmojiPicker.vue'
 import UserProfileModal from './components/UserProfileModal.vue'
-import type { Message, FirebaseUser, Channel, UserProfile, UserProfileInput } from './types'
+import MentorshipView from './components/mentorship/MentorshipView.vue'
+import { useMentorship } from './composables/useMentorship'
+import type {
+  Message, FirebaseUser, Channel, UserProfile, UserProfileInput,
+  MentorPostInput, MentorshipRequest, MentorProfileInput, MenteeProfileInput
+} from './types'
 import type { FirebaseApp } from 'firebase/app'
 import type { Auth, Unsubscribe as AuthUnsubscribe } from 'firebase/auth'
 import type { Firestore, Unsubscribe as FirestoreUnsubscribe } from 'firebase/firestore'
@@ -64,6 +70,67 @@ const isSidebarOpen: Ref<boolean> = ref(false)
 const isEmojiPickerOpen: Ref<boolean> = ref(false)
 const localMessages: Ref<Message[]> = ref([])
 const darkMode: Ref<boolean> = ref(false)
+
+// --- 導師計畫 State ---
+const currentView: Ref<'chat' | 'mentorship'> = ref('chat')
+
+// --- 使用 useMentorship composable ---
+const mentorship = useMentorship(
+  computed(() => user.value?.uid || null),
+  userProfile,
+  db,
+  appId,
+  MOCK_MODE
+)
+
+// 初始化導師計畫資料
+watch([user, userProfile], async ([u, p]) => {
+  if (u && p) {
+    await mentorship.loadMentorPosts()
+    await mentorship.loadMyMentorships()
+    await mentorship.loadMyProfiles()
+  }
+}, { immediate: true })
+
+// --- 導師計畫事件處理 ---
+const handleCreatePost = async (data: MentorPostInput): Promise<void> => {
+  await mentorship.createPost(data)
+}
+
+const handleDeletePost = async (id: string): Promise<void> => {
+  await mentorship.deletePost(id)
+}
+
+const handleRequestMentorship = async (data: MentorshipRequest, postType: 'offer' | 'request'): Promise<void> => {
+  // postType === 'offer' 表示對方是導師，我想成為學員 → 我不是導師
+  // postType === 'request' 表示對方是學員，我想成為導師 → 我是導師
+  await mentorship.requestMentorship(data, postType === 'request')
+}
+
+const handleAcceptMentorship = async (id: string): Promise<void> => {
+  await mentorship.acceptMentorship(id)
+}
+
+const handleRejectMentorship = async (id: string): Promise<void> => {
+  await mentorship.rejectMentorship(id)
+}
+
+const handleCompleteMentorship = async (id: string): Promise<void> => {
+  await mentorship.completeMentorship(id)
+}
+
+const handleUpdateMentorProfile = async (data: MentorProfileInput): Promise<void> => {
+  await mentorship.updateMentorProfile(data)
+}
+
+const handleUpdateMenteeProfile = async (data: MenteeProfileInput): Promise<void> => {
+  await mentorship.updateMenteeProfile(data)
+}
+
+const handleMentorshipRefresh = async (): Promise<void> => {
+  await mentorship.loadMentorPosts()
+  await mentorship.loadMyMentorships()
+}
 
 // --- Profile Modal State ---
 const profileModalShow: Ref<boolean> = ref(false)
@@ -534,47 +601,94 @@ const closeProfileModal = (): void => {
           <button
             v-for="channel in channels"
             :key="channel.id"
-            @click="selectChannel(channel.id)"
+            @click="selectChannel(channel.id); currentView = 'chat'"
             :class="[
               'w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-all',
-              currentChannel === channel.id
+              currentView === 'chat' && currentChannel === channel.id
                 ? (darkMode ? 'bg-indigo-900/40 text-indigo-300 shadow-sm' : 'bg-indigo-50 text-indigo-700 shadow-sm')
                 : (darkMode ? 'text-slate-400 hover:bg-slate-800 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100')
             ]"
           >
-            <component :is="channel.icon" :class="['w-5 h-5', currentChannel === channel.id ? 'text-indigo-500' : 'text-slate-500']" />
+            <component :is="channel.icon" :class="['w-5 h-5', currentView === 'chat' && currentChannel === channel.id ? 'text-indigo-500' : 'text-slate-500']" />
             <span class="flex-1 text-left">{{ channel.name }}</span>
+          </button>
+
+          <!-- 導師計畫 -->
+          <p class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 mt-6">社群功能</p>
+          <button
+            @click="currentView = 'mentorship'; isSidebarOpen = false"
+            :class="[
+              'w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-all',
+              currentView === 'mentorship'
+                ? (darkMode ? 'bg-indigo-900/40 text-indigo-300 shadow-sm' : 'bg-indigo-50 text-indigo-700 shadow-sm')
+                : (darkMode ? 'text-slate-400 hover:bg-slate-800 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100')
+            ]"
+          >
+            <Users :class="['w-5 h-5', currentView === 'mentorship' ? 'text-indigo-500' : 'text-slate-500']" />
+            <span class="flex-1 text-left">導師計畫</span>
+            <span
+              v-if="mentorship.pendingRequests.value.length > 0"
+              class="px-1.5 py-0.5 text-xs rounded-full bg-red-500 text-white"
+            >
+              {{ mentorship.pendingRequests.value.length }}
+            </span>
           </button>
         </nav>
       </div>
     </aside>
 
-    <!-- 主對話區 -->
+    <!-- 主內容區 -->
     <main :class="['flex-1 flex flex-col min-w-0 transition-colors duration-300', darkMode ? 'bg-slate-950' : 'bg-white']">
-      <!-- Header -->
-      <header :class="['h-16 border-b flex items-center px-4 justify-between flex-shrink-0 z-10 shadow-sm', darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200']">
-        <div class="flex items-center gap-3">
-          <button @click="isSidebarOpen = true" class="md:hidden p-2 text-slate-500">
-            <Menu class="w-6 h-6" />
-          </button>
-          <div class="flex items-center gap-2">
-            <Hash class="w-5 h-5 text-slate-400" />
-            <h2 class="font-bold text-lg">{{ activeChannelInfo?.name }}</h2>
+
+      <!-- 導師計畫頁面 -->
+      <MentorshipView
+        v-if="currentView === 'mentorship'"
+        :dark-mode="darkMode"
+        :user-id="user?.uid || ''"
+        :user-profile="userProfile"
+        :mentor-posts="mentorship.mentorPosts.value"
+        :my-mentorships="mentorship.myMentorships.value"
+        :my-mentor-profile="mentorship.myMentorProfile.value"
+        :my-mentee-profile="mentorship.myMenteeProfile.value"
+        :is-loading="mentorship.isLoading.value"
+        @create-post="handleCreatePost"
+        @delete-post="handleDeletePost"
+        @request-mentorship="handleRequestMentorship"
+        @accept-mentorship="handleAcceptMentorship"
+        @reject-mentorship="handleRejectMentorship"
+        @complete-mentorship="handleCompleteMentorship"
+        @update-mentor-profile="handleUpdateMentorProfile"
+        @update-mentee-profile="handleUpdateMenteeProfile"
+        @view-profile="openOtherProfile"
+        @refresh="handleMentorshipRefresh"
+      />
+
+      <!-- 聊天室 -->
+      <template v-else>
+        <!-- Header -->
+        <header :class="['h-16 border-b flex items-center px-4 justify-between flex-shrink-0 z-10 shadow-sm', darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200']">
+          <div class="flex items-center gap-3">
+            <button @click="isSidebarOpen = true" class="md:hidden p-2 text-slate-500">
+              <Menu class="w-6 h-6" />
+            </button>
+            <div class="flex items-center gap-2">
+              <Hash class="w-5 h-5 text-slate-400" />
+              <h2 class="font-bold text-lg">{{ activeChannelInfo?.name }}</h2>
+            </div>
           </div>
-        </div>
 
-        <!-- Dark Mode 切換 -->
-        <button
-          @click="toggleDarkMode"
-          :class="['p-2 rounded-full transition-all', darkMode ? 'bg-slate-800 text-yellow-400 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200']"
-          :title="darkMode ? '切換至淺色模式' : '切換至深色模式'"
-        >
-          <Sun v-if="darkMode" class="w-5 h-5" />
-          <Moon v-else class="w-5 h-5" />
-        </button>
-      </header>
+          <!-- Dark Mode 切換 -->
+          <button
+            @click="toggleDarkMode"
+            :class="['p-2 rounded-full transition-all', darkMode ? 'bg-slate-800 text-yellow-400 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200']"
+            :title="darkMode ? '切換至淺色模式' : '切換至深色模式'"
+          >
+            <Sun v-if="darkMode" class="w-5 h-5" />
+            <Moon v-else class="w-5 h-5" />
+          </button>
+        </header>
 
-      <!-- 訊息列表 -->
+        <!-- 訊息列表 -->
       <div :class="['flex-1 overflow-y-auto p-4 space-y-6 transition-colors duration-300', darkMode ? 'bg-slate-950/50' : 'bg-slate-50/50']">
         <div
           v-for="(msg, index) in messages"
@@ -656,6 +770,7 @@ const closeProfileModal = (): void => {
           </button>
         </form>
       </div>
+      </template>
     </main>
   </div>
 </template>
