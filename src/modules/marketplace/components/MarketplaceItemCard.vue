@@ -13,8 +13,8 @@ interface Props {
 const props = defineProps<Props>()
 
 const emit = defineEmits<{
-  click: []
-  toggleWishlist: []
+  (e: 'click'): void
+  (e: 'toggleWishlist'): void
 }>()
 
 // 計算折扣百分比

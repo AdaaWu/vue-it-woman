@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import {
   Search, Plus, Filter, Package, Heart, ShoppingBag,
-  Grid, List, X, RefreshCw
+  Grid, List, X, RefreshCw, AlertTriangle
 } from 'lucide-vue-next'
 import type { Ref } from 'vue'
 import type { UserProfile, MarketplaceItem, MarketplaceCategory, MarketplaceItemInput } from '@/types'
@@ -82,9 +82,12 @@ const selectCategory = (category: MarketplaceCategory | 'all') => {
 
 // 查看商品詳情
 const viewItem = async (item: MarketplaceItem) => {
+  console.log('[Marketplace] viewItem called:', item.id)
   await marketplace.loadItem(item.id)
+  console.log('[Marketplace] currentItem:', marketplace.currentItem.value)
   await marketplace.loadComments(item.id)
   showDetail.value = true
+  console.log('[Marketplace] showDetail:', showDetail.value)
 }
 
 // 收藏/取消收藏
@@ -170,6 +173,17 @@ watch(() => props.userId, async (id) => {
           <Plus :size="18" />
           <span class="hidden sm:inline">刊登物品</span>
         </button>
+      </div>
+
+      <!-- 交易注意事項提示 -->
+      <div
+        :class="[
+          'flex items-center gap-2 px-3 py-2 rounded-lg text-xs mb-3',
+          darkMode ? 'bg-amber-500/10 text-amber-300' : 'bg-amber-50 text-amber-700'
+        ]"
+      >
+        <AlertTriangle :size="14" class="flex-shrink-0" />
+        <span>本平台不處理金流，交易請選擇安全的公共場所面交，並確認商品狀況</span>
       </div>
 
       <!-- 搜尋和篩選 -->

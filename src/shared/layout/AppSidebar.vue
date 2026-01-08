@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { X, Pencil, Users, MessageSquare, BookOpen, ShoppingBag } from 'lucide-vue-next'
+import { X, Pencil, Users, MessageSquare, BookOpen, ShoppingBag, Link } from 'lucide-vue-next'
 import type { Channel, UserProfile } from '@/types'
 
 interface Props {
@@ -9,7 +9,7 @@ interface Props {
   userProfile: UserProfile | null
   channels: Channel[]
   currentChannel: string
-  currentView: 'chat' | 'mentorship' | 'forum' | 'booklist' | 'marketplace'
+  currentView: 'chat' | 'mentorship' | 'forum' | 'booklist' | 'marketplace' | 'profile' | 'social-embed'
   pendingRequestsCount: number
 }
 
@@ -22,6 +22,7 @@ const emit = defineEmits<{
   selectForum: []
   selectBooklist: []
   selectMarketplace: []
+  selectSocialEmbed: []
   openProfile: []
 }>()
 </script>
@@ -159,7 +160,7 @@ const emit = defineEmits<{
           </span>
         </button>
 
-        <!-- 共享書單 -->
+        <!-- 議題書單 -->
         <button
           @click="emit('selectBooklist')"
           :class="[
@@ -170,7 +171,7 @@ const emit = defineEmits<{
           ]"
         >
           <BookOpen :class="['w-5 h-5', currentView === 'booklist' ? 'text-indigo-500' : 'text-slate-500']" />
-          <span class="flex-1 text-left">共享書單</span>
+          <span class="flex-1 text-left">議題書單</span>
         </button>
 
         <!-- 二手物交流 -->
@@ -185,6 +186,20 @@ const emit = defineEmits<{
         >
           <ShoppingBag :class="['w-5 h-5', currentView === 'marketplace' ? 'text-indigo-500' : 'text-slate-500']" />
           <span class="flex-1 text-left">二手物交流</span>
+        </button>
+
+        <!-- 社群貼文嵌入 -->
+        <button
+          @click="emit('selectSocialEmbed')"
+          :class="[
+            'w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-all',
+            currentView === 'social-embed'
+              ? (darkMode ? 'bg-indigo-900/40 text-indigo-300 shadow-sm' : 'bg-indigo-50 text-indigo-700 shadow-sm')
+              : (darkMode ? 'text-slate-400 hover:bg-slate-800 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100')
+          ]"
+        >
+          <Link :class="['w-5 h-5', currentView === 'social-embed' ? 'text-indigo-500' : 'text-slate-500']" />
+          <span class="flex-1 text-left">社群貼文</span>
         </button>
       </nav>
     </div>

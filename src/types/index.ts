@@ -29,6 +29,10 @@ export interface UserProfile {
   title: string
   bio: string
   skills: string[]
+  // 新增：個人狀態
+  currentStatus?: string         // 目前狀態（如：找工作、學習中、開放交流）
+  currentGoals?: UserGoal[]      // 目前目標
+  socialLinks?: UserSocialLinks  // 社群連結
   createdAt: {
     seconds: number
     toMillis?: () => number
@@ -39,6 +43,35 @@ export interface UserProfile {
   } | null
 }
 
+// 使用者目標
+export interface UserGoal {
+  id: string
+  content: string
+  deadline?: string  // YYYY-MM-DD 格式
+  isCompleted: boolean
+  createdAt: FirebaseTimestamp | null
+}
+
+// 社群連結
+export interface UserSocialLinks {
+  github?: string
+  linkedin?: string
+  twitter?: string
+  website?: string
+}
+
+// 使用者狀態選項
+export const USER_STATUS_OPTIONS: string[] = [
+  '🎯 專注學習中',
+  '💼 找工作中',
+  '🤝 開放交流',
+  '👩‍🏫 可以指導新手',
+  '🌱 職涯轉換中',
+  '🚀 Side Project 進行中',
+  '📚 充電休息中',
+  '💡 尋找合作夥伴'
+]
+
 // 個人檔案輸入 (不含系統欄位)
 export interface UserProfileInput {
   nickname: string
@@ -46,6 +79,46 @@ export interface UserProfileInput {
   title?: string
   bio?: string
   skills?: string[]
+  currentStatus?: string
+  currentGoals?: UserGoal[]
+  socialLinks?: UserSocialLinks
+}
+
+// ===== 使用者活動紀錄 =====
+
+// 活動類型
+export type UserActivityType = 'forum_post' | 'forum_comment' | 'mentorship_request' | 'mentorship_offer' | 'book_review' | 'marketplace_listing' | 'marketplace_sold'
+
+// 活動類型標籤
+export const USER_ACTIVITY_TYPE_LABELS: Record<UserActivityType, { label: string; icon: string; color: string }> = {
+  forum_post: { label: '發布議題', icon: '💬', color: 'bg-blue-500' },
+  forum_comment: { label: '參與討論', icon: '💭', color: 'bg-indigo-500' },
+  mentorship_request: { label: '尋找導師', icon: '🙋', color: 'bg-purple-500' },
+  mentorship_offer: { label: '提供指導', icon: '👩‍🏫', color: 'bg-pink-500' },
+  book_review: { label: '書評分享', icon: '📖', color: 'bg-green-500' },
+  marketplace_listing: { label: '刊登商品', icon: '🛍️', color: 'bg-amber-500' },
+  marketplace_sold: { label: '完成交易', icon: '✅', color: 'bg-teal-500' }
+}
+
+// 使用者活動紀錄
+export interface UserActivity {
+  id: string
+  userId: string
+  type: UserActivityType
+  targetId: string       // 關聯的 post/mentorship/book/item ID
+  targetTitle: string    // 標題快取
+  preview?: string       // 內容預覽
+  createdAt: FirebaseTimestamp | null
+}
+
+// 使用者統計摘要
+export interface UserStats {
+  forumPosts: number
+  forumComments: number
+  mentorshipActive: number
+  booksReviewed: number
+  marketplaceListings: number
+  marketplaceSold: number
 }
 
 // 預設技能標籤
@@ -419,6 +492,37 @@ export interface UserReadingStats {
   likesReceived: number
   sharesCount: number
   badges: ReadingBadge[]
+  updatedAt: FirebaseTimestamp | null
+}
+
+// ===== 書單議題專欄 =====
+
+// 議題分類
+export type TopicCategory = 'career' | 'skills' | 'mindset' | 'life' | 'leadership'
+
+// 議題分類標籤
+export const TOPIC_CATEGORY_LABELS: Record<TopicCategory, string> = {
+  career: '職涯困境',
+  skills: '技能提升',
+  mindset: '心態調適',
+  life: '生活平衡',
+  leadership: '領導管理'
+}
+
+// 書單議題 (痛點 -> 書本解法)
+export interface BookTopic {
+  id: string
+  category: TopicCategory
+  painPoint: string          // 痛點標題
+  painDescription: string    // 痛點描述
+  solution: string           // 解決方案概述
+  bookIds: string[]          // 相關書籍 ID
+  icon: string               // emoji 圖示
+  color: string              // 主題色 (tailwind class)
+  viewCount: number
+  saveCount: number
+  savedBy: string[]
+  createdAt: FirebaseTimestamp | null
   updatedAt: FirebaseTimestamp | null
 }
 

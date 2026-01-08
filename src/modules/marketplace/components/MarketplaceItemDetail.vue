@@ -2,7 +2,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import {
   X, Heart, Eye, MessageCircle, MapPin, User, Send,
-  ChevronLeft, ChevronRight, Tag, Package, Clock
+  ChevronLeft, ChevronRight, Tag, Package, Clock, AlertTriangle
 } from 'lucide-vue-next'
 import type { MarketplaceItem, MarketplaceComment, UserProfile } from '@/types'
 import {
@@ -22,11 +22,11 @@ interface Props {
 const props = defineProps<Props>()
 
 const emit = defineEmits<{
-  close: []
-  toggleWishlist: []
-  addComment: [content: string, parentId?: string]
-  updateStatus: [status: 'active' | 'reserved' | 'sold' | 'closed']
-  viewUserProfile: [userId: string]
+  (e: 'close'): void
+  (e: 'toggleWishlist'): void
+  (e: 'addComment', content: string, parentId?: string): void
+  (e: 'updateStatus', status: 'active' | 'reserved' | 'sold' | 'closed'): void
+  (e: 'viewUserProfile', userId: string): void
 }>()
 
 // State
@@ -356,6 +356,28 @@ const statusOptions = [
               >
                 {{ item.description }}
               </p>
+            </div>
+
+            <!-- 交易注意事項 -->
+            <div
+              :class="[
+                'p-3 rounded-lg border',
+                darkMode ? 'bg-amber-500/10 border-amber-500/30' : 'bg-amber-50 border-amber-200'
+              ]"
+            >
+              <div class="flex items-start gap-2">
+                <AlertTriangle :size="18" :class="darkMode ? 'text-amber-400' : 'text-amber-500'" />
+                <div>
+                  <p :class="['font-medium text-sm mb-1', darkMode ? 'text-amber-300' : 'text-amber-700']">
+                    交易注意事項
+                  </p>
+                  <ul :class="['text-xs space-y-0.5', darkMode ? 'text-amber-200/80' : 'text-amber-600']">
+                    <li>• 本平台不處理金流，請自行與賣家聯繫交易方式</li>
+                    <li>• 建議面交時選擇人多的公共場所</li>
+                    <li>• 交易前請確認商品狀況，避免糾紛</li>
+                  </ul>
+                </div>
+              </div>
             </div>
 
             <!-- 賣家操作區 -->

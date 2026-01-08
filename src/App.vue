@@ -4,17 +4,18 @@ import type { Ref } from 'vue'
 
 // --- 模組匯入 ---
 import { useAuth, WelcomeScreen } from '@/modules/auth'
-import { useProfile, UserProfileModal } from '@/modules/profile'
+import { useProfile, UserProfileModal, UserProfileView } from '@/modules/profile'
 import { useChat, ChatView, CHANNELS } from '@/modules/chat'
 import { useMentorship, MentorshipView } from '@/modules/mentorship'
 import { ForumView } from '@/modules/forum'
 import { BooklistView } from '@/modules/booklist'
 import { MarketplaceView } from '@/modules/marketplace'
+import { SocialEmbedView } from '@/modules/social-embed'
 import { MOCK_MODE, initializeFirebase } from '@/shared/services/firebase'
 import AppSidebar from '@/shared/layout/AppSidebar.vue'
 
 import type {
-  UserProfile, UserProfileInput,
+  UserProfile, UserProfileInput, UserGoal, UserActivity, UserStats, UserSocialLinks,
   MentorPostInput, MentorshipRequest, MentorProfileInput, MenteeProfileInput
 } from '@/types'
 
@@ -40,10 +41,19 @@ onUnmounted(() => {
 const userId = computed(() => user.value?.uid || null)
 const {
   userProfile,
+  userActivities,
+  userStats,
   isLoading: profileLoading,
   loadUserProfile,
   saveUserProfile,
-  loadOtherUserProfile
+  loadOtherUserProfile,
+  loadUserActivities,
+  loadUserStats,
+  updateStatus,
+  addGoal,
+  toggleGoal,
+  deleteGoal,
+  updateSocialLinks
 } = useProfile(userId)
 
 // 載入 Profile
@@ -79,7 +89,11 @@ watch([user, userProfile], async ([u, p]) => {
 // --- UI State ---
 const darkMode: Ref<boolean> = ref(false)
 const isSidebarOpen: Ref<boolean> = ref(false)
-const currentView: Ref<'chat' | 'mentorship' | 'forum' | 'booklist' | 'marketplace'> = ref('chat')
+const currentView: Ref<'chat' | 'mentorship' | 'forum' | 'booklist' | 'marketplace' | 'profile' | 'social-embed'> = ref('chat')
+
+// --- Profile View State ---
+const profileViewTarget: Ref<UserProfile | null> = ref(null)
+const profileViewIsOwn: Ref<boolean> = ref(false)
 
 // --- Profile Modal State ---
 const profileModalShow: Ref<boolean> = ref(false)
@@ -131,32 +145,72 @@ const handleSelectMarketplace = (): void => {
   isSidebarOpen.value = false
 }
 
+const handleSelectSocialEmbed = (): void => {
+  currentView.value = 'social-embed'
+  isSidebarOpen.value = false
+}
+
 // --- Chat 事件處理 ---
 const handleSendMessage = async (text: string): Promise<void> => {
   await sendMessage(text)
 }
 
-// --- Profile Modal 操作 ---
-const openOwnProfileView = (): void => {
-  profileModalTarget.value = userProfile.value
-  profileModalMode.value = 'view'
-  profileModalIsOwn.value = true
-  profileModalShow.value = true
+// --- Profile 頁面操作 ---
+const openOwnProfileView = async (): Promise<void> => {
+  profileViewTarget.value = userProfile.value
+  profileViewIsOwn.value = true
+  currentView.value = 'profile'
+  isSidebarOpen.value = false
+  await loadUserActivities()
+  await loadUserStats()
 }
 
 const openOtherProfile = async (targetUserId: string): Promise<void> => {
   if (targetUserId === user.value?.uid) {
-    openOwnProfileView()
+    await openOwnProfileView()
     return
   }
 
   const profile = await loadOtherUserProfile(targetUserId)
   if (profile) {
-    profileModalTarget.value = profile
-    profileModalMode.value = 'view'
-    profileModalIsOwn.value = false
-    profileModalShow.value = true
+    profileViewTarget.value = profile
+    profileViewIsOwn.value = false
+    currentView.value = 'profile'
+    await loadUserActivities(targetUserId)
+    await loadUserStats(targetUserId)
   }
+}
+
+const handleProfileBack = (): void => {
+  currentView.value = 'chat'
+  profileViewTarget.value = null
+}
+
+const handleProfileEdit = (): void => {
+  profileModalTarget.value = userProfile.value
+  profileModalMode.value = 'edit'
+  profileModalIsOwn.value = true
+  profileModalShow.value = true
+}
+
+const handleAddGoal = async (goal: Omit<UserGoal, 'id' | 'createdAt'>): Promise<void> => {
+  await addGoal(goal)
+}
+
+const handleToggleGoal = async (goalId: string): Promise<void> => {
+  await toggleGoal(goalId)
+}
+
+const handleDeleteGoal = async (goalId: string): Promise<void> => {
+  await deleteGoal(goalId)
+}
+
+const handleUpdateStatus = async (status: string): Promise<void> => {
+  await updateStatus(status)
+}
+
+const handleUpdateSocialLinks = async (links: UserSocialLinks): Promise<void> => {
+  await updateSocialLinks(links)
 }
 
 const handleProfileSave = async (data: UserProfileInput): Promise<void> => {
@@ -255,15 +309,34 @@ const handleMentorshipRefresh = async (): Promise<void> => {
       @select-forum="handleSelectForum"
       @select-booklist="handleSelectBooklist"
       @select-marketplace="handleSelectMarketplace"
+      @select-social-embed="handleSelectSocialEmbed"
       @open-profile="openOwnProfileView"
     />
 
     <!-- 主內容區 -->
     <main :class="['flex-1 flex flex-col min-w-0 transition-colors duration-300', darkMode ? 'bg-slate-950' : 'bg-white']">
 
+      <!-- Profile 頁面 -->
+      <UserProfileView
+        v-if="currentView === 'profile' && profileViewTarget"
+        :profile="profileViewTarget"
+        :activities="userActivities"
+        :stats="userStats"
+        :dark-mode="darkMode"
+        :is-own-profile="profileViewIsOwn"
+        @back="handleProfileBack"
+        @edit="handleProfileEdit"
+        @add-goal="handleAddGoal"
+        @toggle-goal="handleToggleGoal"
+        @delete-goal="handleDeleteGoal"
+        @update-status="handleUpdateStatus"
+        @update-social-links="handleUpdateSocialLinks"
+        @click-activity="() => {}"
+      />
+
       <!-- 論壇頁面 -->
       <ForumView
-        v-if="currentView === 'forum'"
+        v-else-if="currentView === 'forum'"
         :user-id="user?.uid || ''"
         :user-name="userProfile?.nickname || ''"
         :user-role="userProfile?.role || ''"
@@ -287,6 +360,14 @@ const handleMentorshipRefresh = async (): Promise<void> => {
         :user-profile="userProfile"
         :dark-mode="darkMode"
         @view-user-profile="openOtherProfile"
+      />
+
+      <!-- 社群貼文嵌入頁面 -->
+      <SocialEmbedView
+        v-else-if="currentView === 'social-embed'"
+        :dark-mode="darkMode"
+        @toggle-dark-mode="toggleDarkMode"
+        @open-sidebar="isSidebarOpen = true"
       />
 
       <!-- 導師計畫頁面 -->

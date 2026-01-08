@@ -286,17 +286,20 @@ export function useMarketplace(
 
   // --- 載入單一商品 ---
   const loadItem = async (itemId: string): Promise<MarketplaceItem | null> => {
+    // 先從本地 mock 資料和 local 資料中找
+    const localItem = [...MOCK_ITEMS, ...localItems.value].find(i => i.id === itemId)
+    if (localItem) {
+      currentItem.value = localItem
+      localItem.viewCount++
+      return localItem
+    }
+
+    // Mock 模式下如果找不到就返回 null
     if (MOCK_MODE) {
-      const item = [...MOCK_ITEMS, ...localItems.value].find(i => i.id === itemId)
-      if (item) {
-        currentItem.value = item
-        // 增加瀏覽次數
-        item.viewCount++
-        return item
-      }
       return null
     }
 
+    // Firebase 模式下嘗試從資料庫讀取
     if (!firebaseDb.value) return null
 
     try {
@@ -462,19 +465,26 @@ export function useMarketplace(
     if (!firebaseDb.value) return
 
     try {
-      const { collection, query, where, orderBy, getDocs } = await import('firebase/firestore')
+      const { collection, query, where, getDocs } = await import('firebase/firestore')
 
+      // 不使用 orderBy 避免需要複合索引，改在前端排序
       const q = query(
         collection(firebaseDb.value, 'artifacts', appId, 'public', 'data', 'marketplaceComments'),
-        where('itemId', '==', itemId),
-        orderBy('createdAt', 'asc')
+        where('itemId', '==', itemId)
       )
 
       const snapshot = await getDocs(q)
-      comments.value = snapshot.docs.map(doc => ({
+      const loadedComments = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       } as MarketplaceComment))
+
+      // 前端排序
+      comments.value = loadedComments.sort((a, b) => {
+        const t1 = a.createdAt?.seconds || 0
+        const t2 = b.createdAt?.seconds || 0
+        return t1 - t2
+      })
     } catch (error) {
       console.error('[Marketplace] Load comments error:', error)
     }
